@@ -14,13 +14,18 @@ button:active{transform:scale(.97)}
 .stop{width:180px;height:90px;background:#ff7777}
 .servo{width:170px;height:70px}
 .pen{width:220px;height:75px;background:#d7ffd7}
+.draw{width:260px;height:70px;background:#fff0a8}
 .row{display:flex;justify-content:center;align-items:center;flex-wrap:wrap}
 #status{font-size:20px;font-weight:bold;margin:15px}
 #angle{font-size:30px;font-weight:bold;margin:20px}
+#drawStatus{font-size:18px;font-weight:bold;margin:12px}
 .note{font-size:15px;color:#555}
+input[type="number"]{font-size:24px;width:120px;padding:10px;text-align:center;border:2px solid #777;border-radius:10px}
+label{font-size:20px;font-weight:bold}
 </style>
 </head>
 <body>
+
 <h1>Управление плоттером</h1>
 
 <div class="panel">
@@ -54,6 +59,28 @@ button:active{transform:scale(.97)}
 </div>
 </div>
 
+<div class="panel">
+<h2>Нарисовать круг</h2>
+
+<div class="row">
+<label for="radius">Радиус, мм:</label>
+<input id="radius" type="number" min="2" max="50" step="1" value="10">
+</div>
+
+<br>
+
+<button class="draw" onclick="drawCircle()">
+НАРИСОВАТЬ КРУГ
+</button>
+
+<div id="drawStatus">ГОТОВО</div>
+
+<div class="note">
+Перед запуском поставь каретку в центр свободного места на листе.
+Текущая позиция считается центром круга.
+</div>
+</div>
+
 <script>
 let port=null;
 let writer=null;
@@ -65,54 +92,167 @@ async function connectArduino(){
     alert("Открой страницу в Google Chrome или Microsoft Edge на компьютере.");
     return;
   }
+
   try{
     port=await navigator.serial.requestPort();
-    await port.open({baudRate:115200});
+
+    await port.open({
+      baudRate:115200
+    });
+
     writer=port.writable.getWriter();
+
     document.getElementById("status").innerText="ARDUINO ПОДКЛЮЧЕНА";
-    await new Promise(resolve=>setTimeout(resolve,1500));
+
+    await new Promise(
+      resolve=>setTimeout(resolve,1500)
+    );
+
     readArduino();
-  }catch(error){
+  }
+  catch(error){
     console.log(error);
+
     document.getElementById("status").innerText="ОШИБКА ПОДКЛЮЧЕНИЯ";
   }
 }
 
 async function sendCommand(command){
   if(!writer)return;
+
   try{
-    const data=new TextEncoder().encode(command);
+    const data=
+      new TextEncoder().encode(command);
+
     await writer.write(data);
-  }catch(error){
+  }
+  catch(error){
     console.log(error);
   }
 }
 
+async function drawCircle(){
+  if(!writer){
+    alert("Сначала подключи Arduino.");
+    return;
+  }
+
+  const input=
+    document.getElementById("radius");
+
+  const radius=
+    Number(input.value);
+
+  if(
+    !Number.isFinite(radius) ||
+    radius < 2 ||
+    radius > 50
+  ){
+    alert("Укажи радиус от 2 до 50 мм.");
+    return;
+  }
+
+  document.getElementById("drawStatus").innerText=
+    "ОТПРАВКА КОМАНДЫ...";
+
+  await sendCommand(
+    "C" + radius + "\n"
+  );
+}
+
 async function readArduino(){
-  const decoder=new TextDecoder();
+  const decoder=
+    new TextDecoder();
+
   let buffer="";
+
   while(port&&port.readable){
-    reader=port.readable.getReader();
+    reader=
+      port.readable.getReader();
+
     try{
       while(true){
-        const {value,done}=await reader.read();
+        const {value,done}=
+          await reader.read();
+
         if(done)break;
+
         if(value){
-          buffer+=decoder.decode(value,{stream:true});
-          let lines=buffer.split("\n");
-          buffer=lines.pop();
+          buffer+=
+            decoder.decode(
+              value,
+              {stream:true}
+            );
+
+          let lines=
+            buffer.split("\n");
+
+          buffer=
+            lines.pop();
+
           for(let line of lines){
             line=line.trim();
-            if(line.startsWith("ANGLE:")){
-              const angle=line.substring(6);
-              document.getElementById("angle").innerText="Угол: "+angle;
+
+            if(
+              line.startsWith("ANGLE:")
+            ){
+              const angle=
+                line.substring(6);
+
+              document
+                .getElementById("angle")
+                .innerText=
+                "Угол: " + angle;
+            }
+
+            else if(
+              line.startsWith("DRAW:START:")
+            ){
+              const radius=
+                line.substring(11);
+
+              document
+                .getElementById("drawStatus")
+                .innerText=
+                "РИСУЮ КРУГ, R = " +
+                radius +
+                " мм";
+            }
+
+            else if(
+              line === "DRAW:DONE"
+            ){
+              document
+                .getElementById("drawStatus")
+                .innerText=
+                "КРУГ ГОТОВ";
+            }
+
+            else if(
+              line === "DRAW:ABORTED"
+            ){
+              document
+                .getElementById("drawStatus")
+                .innerText=
+                "РИСОВАНИЕ ОСТАНОВЛЕНО";
+            }
+
+            else if(
+              line === "DRAW:BAD_RADIUS"
+            ){
+              document
+                .getElementById("drawStatus")
+                .innerText=
+                "ОШИБКА РАДИУСА";
             }
           }
         }
       }
-    }catch(error){
+    }
+    catch(error){
       console.log(error);
-    }finally{
+    }
+    finally{
       reader.releaseLock();
       reader=null;
     }
@@ -120,17 +260,39 @@ async function readArduino(){
 }
 
 function setupMoveButton(id,command){
-  const button=document.getElementById(id);
+  const button=
+    document.getElementById(id);
 
-  button.addEventListener("pointerdown",event=>{
-    event.preventDefault();
-    try{button.setPointerCapture(event.pointerId)}catch(error){}
-    sendCommand(command);
-  });
+  button.addEventListener(
+    "pointerdown",
+    event=>{
+      event.preventDefault();
 
-  button.addEventListener("pointerup",()=>sendCommand("0"));
-  button.addEventListener("pointercancel",()=>sendCommand("0"));
-  button.addEventListener("lostpointercapture",()=>sendCommand("0"));
+      try{
+        button.setPointerCapture(
+          event.pointerId
+        );
+      }
+      catch(error){}
+
+      sendCommand(command);
+    }
+  );
+
+  button.addEventListener(
+    "pointerup",
+    ()=>sendCommand("0")
+  );
+
+  button.addEventListener(
+    "pointercancel",
+    ()=>sendCommand("0")
+  );
+
+  button.addEventListener(
+    "lostpointercapture",
+    ()=>sendCommand("0")
+  );
 }
 
 setupMoveButton("xplus","1");
@@ -138,22 +300,59 @@ setupMoveButton("xminus","2");
 setupMoveButton("yplus","3");
 setupMoveButton("yminus","4");
 
-document.addEventListener("keydown",event=>{
-  if(event.repeat)return;
-  if(event.key==="ArrowRight"){event.preventDefault();sendCommand("1")}
-  if(event.key==="ArrowLeft"){event.preventDefault();sendCommand("2")}
-  if(event.key==="ArrowUp"){event.preventDefault();sendCommand("3")}
-  if(event.key==="ArrowDown"){event.preventDefault();sendCommand("4")}
-  if(event.code==="Space"){event.preventDefault();sendCommand("0")}
-});
+document.addEventListener(
+  "keydown",
+  event=>{
+    if(event.repeat)return;
 
-document.addEventListener("keyup",event=>{
-  if(["ArrowRight","ArrowLeft","ArrowUp","ArrowDown"].includes(event.key)){
-    sendCommand("0");
+    if(event.key==="ArrowRight"){
+      event.preventDefault();
+      sendCommand("1");
+    }
+
+    if(event.key==="ArrowLeft"){
+      event.preventDefault();
+      sendCommand("2");
+    }
+
+    if(event.key==="ArrowUp"){
+      event.preventDefault();
+      sendCommand("3");
+    }
+
+    if(event.key==="ArrowDown"){
+      event.preventDefault();
+      sendCommand("4");
+    }
+
+    if(event.code==="Space"){
+      event.preventDefault();
+      sendCommand("0");
+    }
   }
-});
+);
 
-window.addEventListener("blur",()=>sendCommand("0"));
+document.addEventListener(
+  "keyup",
+  event=>{
+    if(
+      [
+        "ArrowRight",
+        "ArrowLeft",
+        "ArrowUp",
+        "ArrowDown"
+      ].includes(event.key)
+    ){
+      sendCommand("0");
+    }
+  }
+);
+
+window.addEventListener(
+  "blur",
+  ()=>sendCommand("0")
+);
 </script>
+
 </body>
 </html>
