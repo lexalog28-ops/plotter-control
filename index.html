@@ -336,7 +336,8 @@ label{
   </div>
 
   <div class="note">
-    Ползунок можно двигать прямо во время рисования круга.
+    Ползунок можно двигать прямо во время рисования круга —
+    траектория при изменении скорости не останавливается.
     Меньшее число = быстрее, большее = медленнее.
   </div>
 
@@ -350,6 +351,8 @@ let writer = null;
 let reader = null;
 
 let speedTimer = null;
+let lastSpeedSendTime = 0;
+let lastSpeedSent = null;
 
 
 // =====================================================
@@ -541,30 +544,87 @@ function setupSpeedSlider(){
         slider.value;
 
 
-      // Не отправляем десятки команд
-      // за одно движение пальца/мыши.
-      if(speedTimer){
+      // Ограничиваем частоту команд:
+      // максимум примерно 8 обновлений в секунду.
+      // Скорость меняется в реальном времени,
+      // но Serial не забивается потоком команд.
+      const now =
+        Date.now();
 
-        clearTimeout(
-          speedTimer
-        );
+      const value =
+        slider.value;
+
+
+      const sendLatest =
+        async function(){
+
+          if(
+            value === lastSpeedSent
+          ){
+            return;
+          }
+
+          lastSpeedSent =
+            value;
+
+          lastSpeedSendTime =
+            Date.now();
+
+          await sendCommand(
+            "S" +
+            value +
+            "\n"
+          );
+
+        };
+
+
+      const elapsed =
+        now -
+        lastSpeedSendTime;
+
+
+      if(elapsed >= 120){
+
+        if(speedTimer){
+
+          clearTimeout(
+            speedTimer
+          );
+
+          speedTimer =
+            null;
+
+        }
+
+        sendLatest();
 
       }
 
+      else{
 
-      speedTimer =
-        setTimeout(
-          async function(){
+        if(speedTimer){
 
-            await sendCommand(
-              "S" +
-              slider.value +
-              "\n"
-            );
+          clearTimeout(
+            speedTimer
+          );
 
-          },
-          30
-        );
+        }
+
+        speedTimer =
+          setTimeout(
+            function(){
+
+              speedTimer =
+                null;
+
+              sendLatest();
+
+            },
+            120 - elapsed
+          );
+
+      }
 
     }
   );
@@ -986,6 +1046,20 @@ document.addEventListener(
 document.addEventListener(
   "keyup",
   event => {
+
+    // Если фокус находится в поле или на ползунке,
+    // стрелки относятся к этому элементу и НЕ должны
+    // отправлять STOP станку.
+    if(
+      document.activeElement &&
+      (
+        document.activeElement.tagName === "INPUT" ||
+        document.activeElement.tagName === "TEXTAREA"
+      )
+    ){
+      return;
+    }
+
 
     if(
       [
