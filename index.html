@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plotter Control</title>
+<style>
+body{font-family:"Segoe UI",Arial,sans-serif;text-align:center;background:#eeeeee;margin:0;padding:20px}
+.panel{background:white;max-width:700px;margin:20px auto;padding:20px;border-radius:15px;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+button{font-family:"Segoe UI",Arial,sans-serif;font-size:24px;font-weight:bold;margin:8px;padding:15px;border:2px solid #444;border-radius:12px;cursor:pointer;user-select:none;touch-action:none}
+button:active{transform:scale(.97)}
+.connect{width:280px;height:65px;background:#d9ecff}
+.move{width:170px;height:90px}
+.stop{width:180px;height:90px;background:#ff7777}
+.servo{width:170px;height:70px}
+.pen{width:220px;height:75px;background:#d7ffd7}
+.row{display:flex;justify-content:center;align-items:center;flex-wrap:wrap}
+#status{font-size:20px;font-weight:bold;margin:15px}
+#angle{font-size:30px;font-weight:bold;margin:20px}
+.note{font-size:15px;color:#555}
+</style>
+</head>
+<body>
+<h1>Управление плоттером</h1>
+
+<div class="panel">
+<button class="connect" onclick="connectArduino()">ПОДКЛЮЧИТЬ ARDUINO</button>
+<div id="status">НЕ ПОДКЛЮЧЕНО</div>
+<div class="note">Используй Chrome или Edge. Монитор порта Arduino IDE должен быть закрыт.</div>
+</div>
+
+<div class="panel">
+<h2>Каретки X / Y</h2>
+<div><button id="yplus" class="move">Y+</button></div>
+<div class="row">
+<button id="xminus" class="move">X-</button>
+<button class="stop" onclick="sendCommand('0')">STOP</button>
+<button id="xplus" class="move">X+</button>
+</div>
+<div><button id="yminus" class="move">Y-</button></div>
+</div>
+
+<div class="panel">
+<h2>SG90</h2>
+<div id="angle">Угол: 63</div>
+<div class="row">
+<button class="servo" onclick="sendCommand('-')">- 1°</button>
+<button class="servo" onclick="sendCommand('+')">+ 1°</button>
+</div>
+<br>
+<div class="row">
+<button class="pen" onclick="sendCommand('d')">Ручка вниз</button>
+<button class="pen" onclick="sendCommand('u')">Ручка вверх</button>
+</div>
+</div>
+
+<script>
+let port=null;
+let writer=null;
+let reader=null;
+
+async function connectArduino(){
+  if(!("serial" in navigator)){
+    document.getElementById("status").innerText="WEB SERIAL НЕ ПОДДЕРЖИВАЕТСЯ";
+    alert("Открой страницу в Google Chrome или Microsoft Edge на компьютере.");
+    return;
+  }
+  try{
+    port=await navigator.serial.requestPort();
+    await port.open({baudRate:115200});
+    writer=port.writable.getWriter();
+    document.getElementById("status").innerText="ARDUINO ПОДКЛЮЧЕНА";
+    await new Promise(resolve=>setTimeout(resolve,1500));
+    readArduino();
+  }catch(error){
+    console.log(error);
+    document.getElementById("status").innerText="ОШИБКА ПОДКЛЮЧЕНИЯ";
+  }
+}
+
+async function sendCommand(command){
+  if(!writer)return;
+  try{
+    const data=new TextEncoder().encode(command);
+    await writer.write(data);
+  }catch(error){
+    console.log(error);
+  }
+}
+
+async function readArduino(){
+  const decoder=new TextDecoder();
+  let buffer="";
+  while(port&&port.readable){
+    reader=port.readable.getReader();
+    try{
+      while(true){
+        const {value,done}=await reader.read();
+        if(done)break;
+        if(value){
+          buffer+=decoder.decode(value,{stream:true});
+          let lines=buffer.split("\n");
+          buffer=lines.pop();
+          for(let line of lines){
+            line=line.trim();
+            if(line.startsWith("ANGLE:")){
+              const angle=line.substring(6);
+              document.getElementById("angle").innerText="Угол: "+angle;
+            }
+          }
+        }
+      }
+    }catch(error){
+      console.log(error);
+    }finally{
+      reader.releaseLock();
+      reader=null;
+    }
+  }
+}
+
+function setupMoveButton(id,command){
+  const button=document.getElementById(id);
+
+  button.addEventListener("pointerdown",event=>{
+    event.preventDefault();
+    try{button.setPointerCapture(event.pointerId)}catch(error){}
+    sendCommand(command);
+  });
+
+  button.addEventListener("pointerup",()=>sendCommand("0"));
+  button.addEventListener("pointercancel",()=>sendCommand("0"));
+  button.addEventListener("lostpointercapture",()=>sendCommand("0"));
+}
+
+setupMoveButton("xplus","1");
+setupMoveButton("xminus","2");
+setupMoveButton("yplus","3");
+setupMoveButton("yminus","4");
+
+document.addEventListener("keydown",event=>{
+  if(event.repeat)return;
+  if(event.key==="ArrowRight"){event.preventDefault();sendCommand("1")}
+  if(event.key==="ArrowLeft"){event.preventDefault();sendCommand("2")}
+  if(event.key==="ArrowUp"){event.preventDefault();sendCommand("3")}
+  if(event.key==="ArrowDown"){event.preventDefault();sendCommand("4")}
+  if(event.code==="Space"){event.preventDefault();sendCommand("0")}
+});
+
+document.addEventListener("keyup",event=>{
+  if(["ArrowRight","ArrowLeft","ArrowUp","ArrowDown"].includes(event.key)){
+    sendCommand("0");
+  }
+});
+
+window.addEventListener("blur",()=>sendCommand("0"));
+</script>
+</body>
+</html>
