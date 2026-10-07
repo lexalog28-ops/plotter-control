@@ -1,1236 +1,379 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Plotter Control</title>
-
 <style>
-body{
-  font-family:"Segoe UI",Arial,sans-serif;
-  text-align:center;
-  background:#eeeeee;
-  margin:0;
-  padding:20px
-}
-
-.panel{
-  background:white;
-  max-width:700px;
-  margin:20px auto;
-  padding:20px;
-  border-radius:15px;
-  box-shadow:0 2px 10px rgba(0,0,0,.15)
-}
-
-button{
-  font-family:"Segoe UI",Arial,sans-serif;
-  font-size:24px;
-  font-weight:bold;
-  margin:8px;
-  padding:15px;
-  border:2px solid #444;
-  border-radius:12px;
-  cursor:pointer;
-  user-select:none;
-  touch-action:none
-}
-
-button:active{
-  transform:scale(.97)
-}
-
-.connect{
-  width:280px;
-  height:65px;
-  background:#d9ecff
-}
-
-.move{
-  width:170px;
-  height:90px
-}
-
-.stop{
-  width:180px;
-  height:90px;
-  background:#ff7777
-}
-
-.servo{
-  width:170px;
-  height:70px
-}
-
-.pen{
-  width:220px;
-  height:75px;
-  background:#d7ffd7
-}
-
-.draw{
-  width:260px;
-  height:70px;
-  background:#fff0a8
-}
-
-.calibrate{
-  width:220px;
-  height:75px;
-  background:#e8e8ff
-}
-
-.row{
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  flex-wrap:wrap;
-  gap:8px
-}
-
-#status{
-  font-size:20px;
-  font-weight:bold;
-  margin:15px
-}
-
-#angle{
-  font-size:30px;
-  font-weight:bold;
-  margin:20px
-}
-
-#drawStatus{
-  font-size:18px;
-  font-weight:bold;
-  margin:12px
-}
-
-#speedValue{
-  font-size:30px;
-  font-weight:bold
-}
-
-.note{
-  font-size:15px;
-  color:#555;
-  margin-top:10px
-}
-
-input[type="number"]{
-  font-size:24px;
-  width:120px;
-  padding:10px;
-  text-align:center;
-  border:2px solid #777;
-  border-radius:10px
-}
-
-input[type="range"]{
-  width:90%;
-  max-width:520px;
-  margin:20px 0;
-  cursor:pointer
-}
-
-label{
-  font-size:20px;
-  font-weight:bold
-}
-
-.speed-scale{
-  display:flex;
-  justify-content:space-between;
-  max-width:520px;
-  margin:0 auto;
-  font-size:14px;
-  color:#555
-}
+body{font-family:"Segoe UI",Arial,sans-serif;text-align:center;background:#eee;margin:0;padding:20px}
+.panel{background:#fff;max-width:720px;margin:20px auto;padding:20px;border-radius:15px;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+button{font-family:inherit;font-size:22px;font-weight:700;margin:8px;padding:14px;border:2px solid #444;border-radius:12px;cursor:pointer;user-select:none;touch-action:none}
+button:active{transform:scale(.97)}
+.row{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap}
+.connect{width:280px;background:#d9ecff}
+.move{width:165px;height:85px}
+.stop{width:175px;height:85px;background:#ff8585}
+.servo{width:160px}
+.pen{width:210px;background:#d7ffd7}
+.draw{width:260px;background:#fff0a8}
+.zero{width:220px;background:#dff3ff}
+.home{width:220px;background:#e8e8ff}
+.cal{width:210px;background:#eee8ff}
+#status,#drawStatus,#calStatus,#zeroStatus{font-size:18px;font-weight:700;margin:12px}
+#angle{font-size:28px;font-weight:700;margin:15px}
+.coords{font-size:26px;font-weight:700;margin:12px}
+.note{font-size:14px;color:#555;margin-top:10px}
+label{font-size:19px;font-weight:700}
+input[type=number]{font-size:22px;width:120px;padding:8px;text-align:center;border:2px solid #777;border-radius:10px}
+input[type=range]{width:90%;max-width:520px;margin:18px 0}
+.scale{display:flex;justify-content:space-between;max-width:520px;margin:0 auto;font-size:14px;color:#555}
 </style>
 </head>
-
 <body>
 
 <h1>Управление плоттером</h1>
 
-
 <div class="panel">
-
-  <button
-    class="connect"
-    onclick="connectArduino()"
-  >
-    ПОДКЛЮЧИТЬ ARDUINO
-  </button>
-
-  <div id="status">
-    НЕ ПОДКЛЮЧЕНО
-  </div>
-
-  <div class="note">
-    Используй Chrome или Edge.
-    Монитор порта Arduino IDE должен быть закрыт.
-  </div>
-
+  <button class="connect" onclick="connectArduino()">ПОДКЛЮЧИТЬ ARDUINO</button>
+  <div id="status">НЕ ПОДКЛЮЧЕНО</div>
+  <div class="note">Chrome или Edge. Монитор порта Arduino IDE должен быть закрыт.</div>
 </div>
 
-
 <div class="panel">
-
   <h2>Каретки X / Y</h2>
-
-  <div>
-    <button
-      id="yplus"
-      class="move"
-    >
-      Y+
-    </button>
-  </div>
-
+  <div><button id="yplus" class="move">Y+</button></div>
   <div class="row">
-
-    <button
-      id="xminus"
-      class="move"
-    >
-      X-
-    </button>
-
-    <button
-      class="stop"
-      onclick="sendCommand('0')"
-    >
-      STOP
-    </button>
-
-    <button
-      id="xplus"
-      class="move"
-    >
-      X+
-    </button>
-
+    <button id="xminus" class="move">X-</button>
+    <button class="stop" onclick="sendCommand('0')">STOP</button>
+    <button id="xplus" class="move">X+</button>
   </div>
-
-  <div>
-    <button
-      id="yminus"
-      class="move"
-    >
-      Y-
-    </button>
-  </div>
-
+  <div><button id="yminus" class="move">Y-</button></div>
 </div>
 
-
 <div class="panel">
+  <h2>Ноль и координаты</h2>
 
-  <h2>SG90</h2>
-
-  <div id="angle">
-    Угол: 72
+  <div class="coords">
+    X: <span id="posX">—</span> мм &nbsp;&nbsp;
+    Y: <span id="posY">—</span> мм
   </div>
 
   <div class="row">
-
-    <button
-      class="servo"
-      onclick="sendCommand('-')"
-    >
-      - 1°
-    </button>
-
-    <button
-      class="servo"
-      onclick="sendCommand('+')"
-    >
-      + 1°
-    </button>
-
+    <button class="zero" onclick="setZero()">ЭТО НОЛЬ 0,0</button>
+    <button class="home" onclick="goZero()">ВЕРНУТЬСЯ В НОЛЬ</button>
   </div>
 
-  <br>
+  <div id="zeroStatus">НОЛЬ НЕ ЗАДАН</div>
 
-  <div class="row">
-
-    <button
-      class="pen"
-      onclick="sendCommand('d')"
-    >
-      Ручка вниз
-    </button>
-
-    <button
-      class="pen"
-      onclick="sendCommand('u')"
-    >
-      Ручка вверх
-    </button>
-
+  <div class="note">
+    Поставь каретку вручную в нужную точку и нажми «ЭТО НОЛЬ 0,0».
+    Arduino сохранит ноль и текущие координаты в EEPROM.
+    После выключения ноль сохранится, если каретку не двигать руками и не будет пропусков шагов.
   </div>
-
 </div>
 
-
 <div class="panel">
-
   <h2>Калибровка осей</h2>
-
   <div class="row">
-
-    <button
-      class="calibrate"
-      onclick="runCalibration('X')"
-    >
-      X +50 мм
-    </button>
-
-    <button
-      class="calibrate"
-      onclick="runCalibration('Y')"
-    >
-      Y +50 мм
-    </button>
-
+    <button class="cal" onclick="runCalibration('X')">X +50 мм</button>
+    <button class="cal" onclick="runCalibration('Y')">Y +50 мм</button>
   </div>
-
-  <div id="calStatus">
-    ГОТОВО К ТЕСТУ
-  </div>
-
+  <div id="calStatus">ГОТОВО К ТЕСТУ</div>
   <div class="note">
-    Перед тестом убедись, что у каретки есть минимум 50 мм свободного хода.
-    Отметь начальное положение, нажми кнопку и измерь реальное перемещение.
-    Каретка назад автоматически не возвращается.
+    Перед тестом оставь минимум 50 мм свободного хода.
+    После движения измерь фактическое расстояние.
   </div>
-
 </div>
 
+<div class="panel">
+  <h2>SG90</h2>
+  <div id="angle">Угол: 72</div>
+  <div class="row">
+    <button class="servo" onclick="sendCommand('-')">- 1°</button>
+    <button class="servo" onclick="sendCommand('+')">+ 1°</button>
+  </div>
+  <div class="row">
+    <button class="pen" onclick="sendCommand('d')">Ручка вниз</button>
+    <button class="pen" onclick="sendCommand('u')">Ручка вверх</button>
+  </div>
+</div>
 
 <div class="panel">
-
   <h2>Нарисовать круг</h2>
-
   <div class="row">
-
-    <label for="radius">
-      Радиус, мм:
-    </label>
-
-    <input
-      id="radius"
-      type="number"
-      min="2"
-      max="50"
-      step="0.5"
-      value="10"
-    >
-
+    <label for="radius">Радиус, мм:</label>
+    <input id="radius" type="number" min="2" max="50" step="0.5" value="10">
   </div>
-
   <br>
-
-  <button
-    class="draw"
-    onclick="drawCircle()"
-  >
-    НАРИСОВАТЬ КРУГ
-  </button>
-
-  <div id="drawStatus">
-    ГОТОВО
-  </div>
-
-  <div class="note">
-    Текущая позиция каретки считается центром круга.
-  </div>
-
+  <button class="draw" onclick="drawCircle()">НАРИСОВАТЬ КРУГ</button>
+  <div id="drawStatus">ГОТОВО</div>
+  <div class="note">Текущая позиция каретки считается центром круга.</div>
 </div>
-
 
 <div class="panel">
-
   <h2>Скорость рисования</h2>
-
-  <div>
-    Интервал:
-    <span id="speedValue">
-      300
-    </span>
-    мкс
-  </div>
-
-  <input
-    id="speedSlider"
-    type="range"
-    min="120"
-    max="1200"
-    step="10"
-    value="300"
-  >
-
-  <div class="speed-scale">
-    <span>БЫСТРЕЕ</span>
-    <span>МЕДЛЕННЕЕ</span>
-  </div>
-
-  <div class="note">
-    Ползунок можно двигать прямо во время рисования круга —
-    траектория при изменении скорости не останавливается.
-    Меньшее число = быстрее, большее = медленнее.
-  </div>
-
+  <div>Интервал: <b><span id="speedValue">300</span> мкс</b></div>
+  <input id="speedSlider" type="range" min="120" max="1200" step="10" value="300">
+  <div class="scale"><span>БЫСТРЕЕ</span><span>МЕДЛЕННЕЕ</span></div>
+  <div class="note">Ползунок можно двигать прямо во время рисования. Движение не должно останавливаться.</div>
 </div>
-
 
 <script>
-
-let port = null;
-let writer = null;
-let reader = null;
-
-let speedTimer = null;
-let lastSpeedSendTime = 0;
-let lastSpeedSent = null;
-
-
-// =====================================================
-// ПОДКЛЮЧЕНИЕ
-// =====================================================
+let port=null,writer=null,reader=null;
+let speedTimer=null,lastSpeedSendTime=0,lastSpeedSent=null;
 
 async function connectArduino(){
-
   if(!("serial" in navigator)){
-
-    document
-      .getElementById("status")
-      .innerText =
-      "WEB SERIAL НЕ ПОДДЕРЖИВАЕТСЯ";
-
-    alert(
-      "Открой страницу в Google Chrome или Microsoft Edge на компьютере."
-    );
-
+    alert("Открой страницу в Chrome или Edge.");
     return;
   }
 
-
   try{
+    port=await navigator.serial.requestPort();
+    await port.open({baudRate:115200});
+    writer=port.writable.getWriter();
 
-    port =
-      await navigator.serial.requestPort();
+    document.getElementById("status").innerText="ARDUINO ПОДКЛЮЧЕНА";
 
-
-    await port.open({
-      baudRate:115200
-    });
-
-
-    writer =
-      port.writable.getWriter();
-
-
-    document
-      .getElementById("status")
-      .innerText =
-      "ARDUINO ПОДКЛЮЧЕНА";
-
-
-    await new Promise(
-      resolve =>
-        setTimeout(resolve,1500)
-    );
-
-
-    // Запускаем чтение ответов Arduino.
+    await new Promise(r=>setTimeout(r,1500));
     readArduino();
 
-
-    // Сразу передаём Arduino значение ползунка.
-    const speed =
-      document
-        .getElementById("speedSlider")
-        .value;
-
-    await sendCommand(
-      "S" + speed + "\n"
-    );
-
-  }
-
-  catch(error){
-
-    console.log(error);
-
-    document
-      .getElementById("status")
-      .innerText =
-      "ОШИБКА ПОДКЛЮЧЕНИЯ";
-
+    const speed=document.getElementById("speedSlider").value;
+    await sendCommand("S"+speed+"\n");
+    await sendCommand("P");
+  }catch(e){
+    console.log(e);
+    document.getElementById("status").innerText="ОШИБКА ПОДКЛЮЧЕНИЯ";
   }
 }
 
-
-// =====================================================
-// ОТПРАВКА КОМАНД
-// =====================================================
-
-async function sendCommand(command){
-
-  if(!writer){
-    return;
-  }
-
-
+async function sendCommand(cmd){
+  if(!writer)return;
   try{
-
-    const data =
-      new TextEncoder()
-        .encode(command);
-
-
-    await writer.write(data);
-
-  }
-
-  catch(error){
-
-    console.log(error);
-
+    await writer.write(new TextEncoder().encode(cmd));
+  }catch(e){
+    console.log(e);
   }
 }
 
+async function setZero(){
+  if(!writer){alert("Сначала подключи Arduino.");return;}
+  if(!confirm("Назначить текущую позицию как X=0, Y=0?"))return;
+  document.getElementById("zeroStatus").innerText="СОХРАНЯЮ НОЛЬ...";
+  await sendCommand("Z");
+}
 
-// =====================================================
-// КАЛИБРОВКА X / Y НА 50 ММ
-// =====================================================
+async function goZero(){
+  if(!writer){alert("Сначала подключи Arduino.");return;}
+  document.getElementById("zeroStatus").innerText="ВОЗВРАЩАЮСЬ В 0,0...";
+  await sendCommand("G");
+}
 
 async function runCalibration(axis){
-
-  if(!writer){
-
-    alert(
-      "Сначала подключи Arduino."
-    );
-
-    return;
-  }
-
-
-  const status =
-    document
-      .getElementById("calStatus");
-
-
-  if(axis === "X"){
-
-    status.innerText =
-      "X: ДВИЖЕНИЕ НА 50 ММ...";
-
-    await sendCommand("X");
-
-  }
-
-  else if(axis === "Y"){
-
-    status.innerText =
-      "Y: ДВИЖЕНИЕ НА 50 ММ...";
-
-    await sendCommand("Y");
-
-  }
-
+  if(!writer){alert("Сначала подключи Arduino.");return;}
+  document.getElementById("calStatus").innerText=axis+": ДВИЖЕНИЕ НА 50 ММ...";
+  await sendCommand(axis);
 }
-
-
-// =====================================================
-// КРУГ
-// =====================================================
 
 async function drawCircle(){
+  if(!writer){alert("Сначала подключи Arduino.");return;}
 
-  if(!writer){
-
-    alert(
-      "Сначала подключи Arduino."
-    );
-
+  const r=Number(document.getElementById("radius").value);
+  if(!Number.isFinite(r)||r<2||r>50){
+    alert("Укажи радиус от 2 до 50 мм.");
     return;
   }
 
-
-  const input =
-    document
-      .getElementById("radius");
-
-
-  const radius =
-    Number(input.value);
-
-
-  if(
-    !Number.isFinite(radius) ||
-    radius < 2 ||
-    radius > 50
-  ){
-
-    alert(
-      "Укажи радиус от 2 до 50 мм."
-    );
-
-    return;
-  }
-
-
-  document
-    .getElementById("drawStatus")
-    .innerText =
-    "ОТПРАВКА КОМАНДЫ...";
-
-
-  await sendCommand(
-    "C" +
-    radius +
-    "\n"
-  );
-
+  document.getElementById("drawStatus").innerText="ОТПРАВКА КОМАНДЫ...";
+  await sendCommand("C"+r+"\n");
 }
-
-
-// =====================================================
-// ПОЛЗУНОК СКОРОСТИ
-// =====================================================
 
 function setupSpeedSlider(){
+  const s=document.getElementById("speedSlider");
+  const v=document.getElementById("speedValue");
 
-  const slider =
-    document
-      .getElementById("speedSlider");
+  s.addEventListener("input",()=>{
+    v.innerText=s.value;
 
+    const now=Date.now();
+    const value=s.value;
 
-  const valueLabel =
-    document
-      .getElementById("speedValue");
+    const sendLatest=async()=>{
+      if(value===lastSpeedSent)return;
+      lastSpeedSent=value;
+      lastSpeedSendTime=Date.now();
+      await sendCommand("S"+value+"\n");
+    };
 
+    const elapsed=now-lastSpeedSendTime;
 
-  valueLabel.innerText =
-    slider.value;
-
-
-  slider.addEventListener(
-    "input",
-    function(){
-
-      valueLabel.innerText =
-        slider.value;
-
-
-      // Ограничиваем частоту команд:
-      // максимум примерно 8 обновлений в секунду.
-      // Скорость меняется в реальном времени,
-      // но Serial не забивается потоком команд.
-      const now =
-        Date.now();
-
-      const value =
-        slider.value;
-
-
-      const sendLatest =
-        async function(){
-
-          if(
-            value === lastSpeedSent
-          ){
-            return;
-          }
-
-          lastSpeedSent =
-            value;
-
-          lastSpeedSendTime =
-            Date.now();
-
-          await sendCommand(
-            "S" +
-            value +
-            "\n"
-          );
-
-        };
-
-
-      const elapsed =
-        now -
-        lastSpeedSendTime;
-
-
-      if(elapsed >= 120){
-
-        if(speedTimer){
-
-          clearTimeout(
-            speedTimer
-          );
-
-          speedTimer =
-            null;
-
-        }
-
+    if(elapsed>=120){
+      if(speedTimer){clearTimeout(speedTimer);speedTimer=null;}
+      sendLatest();
+    }else{
+      if(speedTimer)clearTimeout(speedTimer);
+      speedTimer=setTimeout(()=>{
+        speedTimer=null;
         sendLatest();
-
-      }
-
-      else{
-
-        if(speedTimer){
-
-          clearTimeout(
-            speedTimer
-          );
-
-        }
-
-        speedTimer =
-          setTimeout(
-            function(){
-
-              speedTimer =
-                null;
-
-              sendLatest();
-
-            },
-            120 - elapsed
-          );
-
-      }
-
+      },120-elapsed);
     }
-  );
-
+  });
 }
-
-
 setupSpeedSlider();
 
-
-// =====================================================
-// ЧТЕНИЕ ОТВЕТОВ ARDUINO
-// =====================================================
-
 async function readArduino(){
+  const decoder=new TextDecoder();
+  let buffer="";
 
-  const decoder =
-    new TextDecoder();
-
-
-  let buffer = "";
-
-
-  while(
-    port &&
-    port.readable
-  ){
-
-    reader =
-      port.readable.getReader();
-
+  while(port&&port.readable){
+    reader=port.readable.getReader();
 
     try{
-
       while(true){
-
-        const {
-          value,
-          done
-        } =
-        await reader.read();
-
-
-        if(done){
-          break;
-        }
-
-
-        if(value){
-
-          buffer +=
-            decoder.decode(
-              value,
-              {
-                stream:true
-              }
-            );
-
-
-          let lines =
-            buffer.split("\n");
-
-
-          buffer =
-            lines.pop();
-
-
-          for(
-            let line of lines
-          ){
-
-            line =
-              line.trim();
-
-
-            // -----------------------------------------
-            // SG90
-            // -----------------------------------------
-
-            if(
-              line.startsWith(
-                "ANGLE:"
-              )
-            ){
-
-              const angle =
-                line.substring(6);
-
-
-              document
-                .getElementById("angle")
-                .innerText =
-                "Угол: " +
-                angle;
-
-            }
-
-
-            // -----------------------------------------
-            // СКОРОСТЬ
-            // -----------------------------------------
-
-            else if(
-              line.startsWith(
-                "SPEED:"
-              )
-            ){
-
-              const speed =
-                line.substring(6);
-
-
-              const slider =
-                document
-                  .getElementById(
-                    "speedSlider"
-                  );
-
-
-              const label =
-                document
-                  .getElementById(
-                    "speedValue"
-                  );
-
-
-              slider.value =
-                speed;
-
-
-              label.innerText =
-                speed;
-
-            }
-
-
-            // -----------------------------------------
-            // КАЛИБРОВКА X / Y
-            // -----------------------------------------
-
-            else if(
-              line === "CAL:X:START"
-            ){
-
-              document
-                .getElementById("calStatus")
-                .innerText =
-                "X: ДВИЖЕНИЕ НА 50 ММ...";
-
-            }
-
-            else if(
-              line === "CAL:Y:START"
-            ){
-
-              document
-                .getElementById("calStatus")
-                .innerText =
-                "Y: ДВИЖЕНИЕ НА 50 ММ...";
-
-            }
-
-            else if(
-              line === "CAL:X:DONE"
-            ){
-
-              document
-                .getElementById("calStatus")
-                .innerText =
-                "X: ГОТОВО — ИЗМЕРЬ ФАКТИЧЕСКОЕ ПЕРЕМЕЩЕНИЕ";
-
-            }
-
-            else if(
-              line === "CAL:Y:DONE"
-            ){
-
-              document
-                .getElementById("calStatus")
-                .innerText =
-                "Y: ГОТОВО — ИЗМЕРЬ ФАКТИЧЕСКОЕ ПЕРЕМЕЩЕНИЕ";
-
-            }
-
-            else if(
-              line === "CAL:X:ABORTED" ||
-              line === "CAL:Y:ABORTED"
-            ){
-
-              document
-                .getElementById("calStatus")
-                .innerText =
-                "ТЕСТ ОСТАНОВЛЕН";
-
-            }
-
-
-            // -----------------------------------------
-            // НАЧАЛО КРУГА
-            // -----------------------------------------
-
-            else if(
-              line.startsWith(
-                "DRAW:START:"
-              )
-            ){
-
-              const radius =
-                line.substring(11);
-
-
-              document
-                .getElementById(
-                  "drawStatus"
-                )
-                .innerText =
-                "РИСУЮ КРУГ, R = " +
-                radius +
-                " мм";
-
-            }
-
-
-            // -----------------------------------------
-            // ГОТОВО
-            // -----------------------------------------
-
-            else if(
-              line ===
-              "DRAW:DONE"
-            ){
-
-              document
-                .getElementById(
-                  "drawStatus"
-                )
-                .innerText =
-                "КРУГ ГОТОВ";
-
-            }
-
-
-            // -----------------------------------------
-            // STOP
-            // -----------------------------------------
-
-            else if(
-              line ===
-              "DRAW:ABORTED"
-            ){
-
-              document
-                .getElementById(
-                  "drawStatus"
-                )
-                .innerText =
-                "РИСОВАНИЕ ОСТАНОВЛЕНО";
-
-            }
-
-
-            // -----------------------------------------
-            // ОШИБКА РАДИУСА
-            // -----------------------------------------
-
-            else if(
-              line ===
-              "DRAW:BAD_RADIUS"
-            ){
-
-              document
-                .getElementById(
-                  "drawStatus"
-                )
-                .innerText =
-                "ОШИБКА РАДИУСА";
-
-            }
-
+        const {value,done}=await reader.read();
+        if(done)break;
+        if(!value)continue;
+
+        buffer+=decoder.decode(value,{stream:true});
+        const lines=buffer.split("\n");
+        buffer=lines.pop();
+
+        for(let line of lines){
+          line=line.trim();
+
+          if(line.startsWith("ANGLE:")){
+            document.getElementById("angle").innerText="Угол: "+line.substring(6);
           }
 
+          else if(line.startsWith("SPEED:")){
+            const n=line.substring(6);
+            document.getElementById("speedSlider").value=n;
+            document.getElementById("speedValue").innerText=n;
+          }
+
+          else if(line==="POS:UNKNOWN"){
+            document.getElementById("posX").innerText="—";
+            document.getElementById("posY").innerText="—";
+          }
+
+          else if(line.startsWith("POS:")){
+            const p=line.substring(4).split(",");
+            if(p.length===2){
+              document.getElementById("posX").innerText=Number(p[0]).toFixed(2);
+              document.getElementById("posY").innerText=Number(p[1]).toFixed(2);
+            }
+          }
+
+          else if(line==="ZERO:SAVED"){
+            document.getElementById("zeroStatus").innerText="НОЛЬ СОХРАНЁН В EEPROM";
+          }
+
+          else if(line==="ZERO:LOADED"){
+            document.getElementById("zeroStatus").innerText="НОЛЬ ЗАГРУЖЕН ИЗ EEPROM";
+          }
+
+          else if(line==="ZERO:NOT_SET"){
+            document.getElementById("zeroStatus").innerText="НОЛЬ НЕ ЗАДАН";
+          }
+
+          else if(line==="HOME:START"){
+            document.getElementById("zeroStatus").innerText="ВОЗВРАЩАЮСЬ В 0,0...";
+          }
+
+          else if(line==="HOME:DONE"){
+            document.getElementById("zeroStatus").innerText="КАРЕТКА В НУЛЕ 0,0";
+          }
+
+          else if(line==="HOME:NO_ZERO"){
+            document.getElementById("zeroStatus").innerText="СНАЧАЛА ЗАДАЙ НОЛЬ";
+          }
+
+          else if(line==="HOME:ABORTED"){
+            document.getElementById("zeroStatus").innerText="ВОЗВРАТ ОСТАНОВЛЕН";
+          }
+
+          else if(line==="CAL:X:START"){
+            document.getElementById("calStatus").innerText="X: ДВИЖЕНИЕ НА 50 ММ...";
+          }
+
+          else if(line==="CAL:Y:START"){
+            document.getElementById("calStatus").innerText="Y: ДВИЖЕНИЕ НА 50 ММ...";
+          }
+
+          else if(line==="CAL:X:DONE"){
+            document.getElementById("calStatus").innerText="X: ГОТОВО — ИЗМЕРЬ РАССТОЯНИЕ";
+          }
+
+          else if(line==="CAL:Y:DONE"){
+            document.getElementById("calStatus").innerText="Y: ГОТОВО — ИЗМЕРЬ РАССТОЯНИЕ";
+          }
+
+          else if(line==="CAL:X:ABORTED"||line==="CAL:Y:ABORTED"){
+            document.getElementById("calStatus").innerText="ТЕСТ ОСТАНОВЛЕН";
+          }
+
+          else if(line.startsWith("DRAW:START:")){
+            document.getElementById("drawStatus").innerText="РИСУЮ КРУГ, R = "+line.substring(11)+" мм";
+          }
+
+          else if(line==="DRAW:DONE"){
+            document.getElementById("drawStatus").innerText="КРУГ ГОТОВ";
+          }
+
+          else if(line==="DRAW:ABORTED"){
+            document.getElementById("drawStatus").innerText="РИСОВАНИЕ ОСТАНОВЛЕНО";
+          }
+
+          else if(line==="DRAW:BAD_RADIUS"){
+            document.getElementById("drawStatus").innerText="ОШИБКА РАДИУСА";
+          }
         }
-
       }
-
-    }
-
-    catch(error){
-
-      console.log(error);
-
-    }
-
-    finally{
-
+    }catch(e){
+      console.log(e);
+    }finally{
       reader.releaseLock();
-
-      reader = null;
-
+      reader=null;
     }
-
   }
-
 }
 
+function setupMoveButton(id,cmd){
+  const b=document.getElementById(id);
 
-// =====================================================
-// КНОПКИ X/Y
-// =====================================================
+  b.addEventListener("pointerdown",e=>{
+    e.preventDefault();
+    try{b.setPointerCapture(e.pointerId);}catch(_){}
+    sendCommand(cmd);
+  });
 
-function setupMoveButton(
-  id,
-  command
-){
-
-  const button =
-    document
-      .getElementById(id);
-
-
-  button.addEventListener(
-    "pointerdown",
-    event => {
-
-      event.preventDefault();
-
-
-      try{
-
-        button.setPointerCapture(
-          event.pointerId
-        );
-
-      }
-
-      catch(error){}
-
-
-      sendCommand(
-        command
-      );
-
-    }
-  );
-
-
-  button.addEventListener(
-    "pointerup",
-    () =>
-      sendCommand("0")
-  );
-
-
-  button.addEventListener(
-    "pointercancel",
-    () =>
-      sendCommand("0")
-  );
-
-
-  button.addEventListener(
-    "lostpointercapture",
-    () =>
-      sendCommand("0")
-  );
-
+  b.addEventListener("pointerup",()=>sendCommand("0"));
+  b.addEventListener("pointercancel",()=>sendCommand("0"));
+  b.addEventListener("lostpointercapture",()=>sendCommand("0"));
 }
 
+setupMoveButton("xplus","1");
+setupMoveButton("xminus","2");
+setupMoveButton("yplus","3");
+setupMoveButton("yminus","4");
 
-setupMoveButton(
-  "xplus",
-  "1"
-);
+document.addEventListener("keydown",e=>{
+  if(document.activeElement&&["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+  if(e.repeat)return;
 
-setupMoveButton(
-  "xminus",
-  "2"
-);
+  if(e.key==="ArrowRight"){e.preventDefault();sendCommand("1");}
+  if(e.key==="ArrowLeft"){e.preventDefault();sendCommand("2");}
+  if(e.key==="ArrowUp"){e.preventDefault();sendCommand("3");}
+  if(e.key==="ArrowDown"){e.preventDefault();sendCommand("4");}
+  if(e.code==="Space"){e.preventDefault();sendCommand("0");}
+});
 
-setupMoveButton(
-  "yplus",
-  "3"
-);
+document.addEventListener("keyup",e=>{
+  if(document.activeElement&&["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+  if(["ArrowRight","ArrowLeft","ArrowUp","ArrowDown"].includes(e.key))sendCommand("0");
+});
 
-setupMoveButton(
-  "yminus",
-  "4"
-);
-
-
-// =====================================================
-// КЛАВИАТУРА
-// =====================================================
-
-document.addEventListener(
-  "keydown",
-  event => {
-
-    // Если пользователь меняет поле или ползунок,
-    // стрелки не должны двигать станок.
-    if(
-      document.activeElement &&
-      (
-        document.activeElement.tagName === "INPUT" ||
-        document.activeElement.tagName === "TEXTAREA"
-      )
-    ){
-      return;
-    }
-
-
-    if(event.repeat){
-      return;
-    }
-
-
-    if(
-      event.key ===
-      "ArrowRight"
-    ){
-
-      event.preventDefault();
-
-      sendCommand("1");
-
-    }
-
-
-    if(
-      event.key ===
-      "ArrowLeft"
-    ){
-
-      event.preventDefault();
-
-      sendCommand("2");
-
-    }
-
-
-    if(
-      event.key ===
-      "ArrowUp"
-    ){
-
-      event.preventDefault();
-
-      sendCommand("3");
-
-    }
-
-
-    if(
-      event.key ===
-      "ArrowDown"
-    ){
-
-      event.preventDefault();
-
-      sendCommand("4");
-
-    }
-
-
-    if(
-      event.code ===
-      "Space"
-    ){
-
-      event.preventDefault();
-
-      sendCommand("0");
-
-    }
-
-  }
-);
-
-
-document.addEventListener(
-  "keyup",
-  event => {
-
-    // Если фокус находится в поле или на ползунке,
-    // стрелки относятся к этому элементу и НЕ должны
-    // отправлять STOP станку.
-    if(
-      document.activeElement &&
-      (
-        document.activeElement.tagName === "INPUT" ||
-        document.activeElement.tagName === "TEXTAREA"
-      )
-    ){
-      return;
-    }
-
-
-    if(
-      [
-        "ArrowRight",
-        "ArrowLeft",
-        "ArrowUp",
-        "ArrowDown"
-      ].includes(
-        event.key
-      )
-    ){
-
-      sendCommand("0");
-
-    }
-
-  }
-);
-
-
-// При уходе со страницы — STOP.
-window.addEventListener(
-  "blur",
-  () =>
-    sendCommand("0")
-);
-
+window.addEventListener("blur",()=>sendCommand("0"));
 </script>
 
 </body>
