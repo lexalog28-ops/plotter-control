@@ -74,6 +74,12 @@ button:active{
   background:#fff0a8
 }
 
+.calibrate{
+  width:220px;
+  height:75px;
+  background:#e8e8ff
+}
+
 .row{
   display:flex;
   justify-content:center;
@@ -224,7 +230,7 @@ label{
   <h2>SG90</h2>
 
   <div id="angle">
-    Угол: 63
+    Угол: 72
   </div>
 
   <div class="row">
@@ -263,6 +269,41 @@ label{
       Ручка вверх
     </button>
 
+  </div>
+
+</div>
+
+
+<div class="panel">
+
+  <h2>Калибровка осей</h2>
+
+  <div class="row">
+
+    <button
+      class="calibrate"
+      onclick="runCalibration('X')"
+    >
+      X +50 мм
+    </button>
+
+    <button
+      class="calibrate"
+      onclick="runCalibration('Y')"
+    >
+      Y +50 мм
+    </button>
+
+  </div>
+
+  <div id="calStatus">
+    ГОТОВО К ТЕСТУ
+  </div>
+
+  <div class="note">
+    Перед тестом убедись, что у каретки есть минимум 50 мм свободного хода.
+    Отметь начальное положение, нажми кнопку и измерь реальное перемещение.
+    Каретка назад автоматически не возвращается.
   </div>
 
 </div>
@@ -459,6 +500,48 @@ async function sendCommand(command){
     console.log(error);
 
   }
+}
+
+
+// =====================================================
+// КАЛИБРОВКА X / Y НА 50 ММ
+// =====================================================
+
+async function runCalibration(axis){
+
+  if(!writer){
+
+    alert(
+      "Сначала подключи Arduino."
+    );
+
+    return;
+  }
+
+
+  const status =
+    document
+      .getElementById("calStatus");
+
+
+  if(axis === "X"){
+
+    status.innerText =
+      "X: ДВИЖЕНИЕ НА 50 ММ...";
+
+    await sendCommand("X");
+
+  }
+
+  else if(axis === "Y"){
+
+    status.innerText =
+      "Y: ДВИЖЕНИЕ НА 50 ММ...";
+
+    await sendCommand("Y");
+
+  }
+
 }
 
 
@@ -757,6 +840,67 @@ async function readArduino(){
 
               label.innerText =
                 speed;
+
+            }
+
+
+            // -----------------------------------------
+            // КАЛИБРОВКА X / Y
+            // -----------------------------------------
+
+            else if(
+              line === "CAL:X:START"
+            ){
+
+              document
+                .getElementById("calStatus")
+                .innerText =
+                "X: ДВИЖЕНИЕ НА 50 ММ...";
+
+            }
+
+            else if(
+              line === "CAL:Y:START"
+            ){
+
+              document
+                .getElementById("calStatus")
+                .innerText =
+                "Y: ДВИЖЕНИЕ НА 50 ММ...";
+
+            }
+
+            else if(
+              line === "CAL:X:DONE"
+            ){
+
+              document
+                .getElementById("calStatus")
+                .innerText =
+                "X: ГОТОВО — ИЗМЕРЬ ФАКТИЧЕСКОЕ ПЕРЕМЕЩЕНИЕ";
+
+            }
+
+            else if(
+              line === "CAL:Y:DONE"
+            ){
+
+              document
+                .getElementById("calStatus")
+                .innerText =
+                "Y: ГОТОВО — ИЗМЕРЬ ФАКТИЧЕСКОЕ ПЕРЕМЕЩЕНИЕ";
+
+            }
+
+            else if(
+              line === "CAL:X:ABORTED" ||
+              line === "CAL:Y:ABORTED"
+            ){
+
+              document
+                .getElementById("calStatus")
+                .innerText =
+                "ТЕСТ ОСТАНОВЛЕН";
 
             }
 
