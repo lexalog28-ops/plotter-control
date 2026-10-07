@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Плоттер SVG</title>
+<style>
+body{font-family:"Segoe UI",Arial,sans-serif;text-align:center;background:#eee;margin:0;padding:20px}
+.panel{background:#fff;max-width:820px;margin:20px auto;padding:20px;border-radius:15px;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.row{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap}
+button{font:700 20px "Segoe UI",Arial,sans-serif;margin:7px;padding:13px;border:2px solid #444;border-radius:12px;cursor:pointer;touch-action:none}
+button:active{transform:scale(.97)}
+.connect{background:#d9ecff}.move{width:150px;height:78px}.stop{background:#ff8585}.zero{background:#dff3ff}.home{background:#e8e8ff}
+.draw{background:#fff0a8}.svgstop{background:#ffb0b0}
+.note{font-size:14px;color:#555;margin-top:10px}.status{font-size:18px;font-weight:700;margin:12px}
+.coords{font-size:24px;font-weight:700;margin:12px}
+input[type=number]{font-size:19px;width:105px;padding:7px;text-align:center;border:2px solid #777;border-radius:9px}
+input[type=range]{width:90%;max-width:520px;margin:18px 0}
+input[type=file]{font-size:16px;max-width:100%}
+label{font-size:17px;font-weight:700}
+#preview{max-width:700px;height:300px;margin:15px auto;border:2px dashed #999;border-radius:10px;background:#fafafa;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#preview img{max-width:100%;max-height:100%;display:block}
+.scale{display:flex;justify-content:space-between;max-width:520px;margin:0 auto;font-size:13px;color:#555}
+</style>
+</head>
+<body>
+
+<h1>Плоттер — SVG по линиям</h1>
+
+<div class="panel">
+  <button class="connect" onclick="connectArduino()">ПОДКЛЮЧИТЬ ARDUINO</button>
+  <div id="status" class="status">НЕ ПОДКЛЮЧЕНО</div>
+  <div class="note">Chrome или Edge. Монитор порта Arduino IDE должен быть закрыт.</div>
+</div>
+
+<div class="panel">
+  <h2>Ручное движение</h2>
+  <div><button id="yplus" class="move">Y+</button></div>
+  <div class="row">
+    <button id="xminus" class="move">X-</button>
+    <button class="move stop" onclick="sendCommand('0')">STOP</button>
+    <button id="xplus" class="move">X+</button>
+  </div>
+  <div><button id="yminus" class="move">Y-</button></div>
+</div>
+
+<div class="panel">
+  <h2>Ноль листа</h2>
+  <div class="coords">X: <span id="posX">—</span> мм &nbsp; Y: <span id="posY">—</span> мм</div>
+  <div class="row">
+    <button class="zero" onclick="setZero()">ЭТО НОЛЬ 0,0</button>
+    <button class="home" onclick="goZero()">ВЕРНУТЬСЯ В НОЛЬ</button>
+  </div>
+  <div id="zeroStatus" class="status">НОЛЬ НЕ ЗАДАН</div>
+  <div class="note">Ноль = верхний левый угол. X идёт вправо, Y идёт вниз.</div>
+</div>
+
+<div class="panel">
+  <h2>Ручка</h2>
+  <div id="angle" class="coords">Угол: 72</div>
+  <div class="row">
+    <button onclick="sendCommand('-')">−1°</button>
+    <button onclick="sendCommand('+')">+1°</button>
+    <button onclick="sendCommand('u')">РУЧКА ВВЕРХ</button>
+    <button onclick="sendCommand('d')">РУЧКА ВНИЗ</button>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Скорость SVG</h2>
+  <div>Интервал: <b><span id="speedValue">300</span> мкс</b></div>
+  <input id="speedSlider" type="range" min="120" max="1500" step="10" value="300">
+  <div class="scale"><span>БЫСТРЕЕ</span><span>МЕДЛЕННЕЕ</span></div>
+  <div class="note">Скорость меняется между отрезками SVG. Во время рисования ползунок не трогай.</div>
+</div>
+
+<div class="panel">
+  <h2>SVG-файл</h2>
+
+  <input id="svgFile" type="file" accept=".svg,image/svg+xml">
+  <div id="fileInfo" class="status">ФАЙЛ НЕ ВЫБРАН</div>
+
+  <div id="preview">ПРЕДПРОСМОТР SVG</div>
+
+  <div class="row">
+    <label>Ширина, мм:
+      <input id="drawWidth" type="number" min="1" step="1" value="80">
+    </label>
+
+    <label>Высота, мм:
+      <input id="drawHeight" type="number" min="1" step="1" value="80">
+    </label>
+  </div>
+
+  <div class="row">
+    <label><input id="keepRatio" type="checkbox" checked> Сохранять пропорции</label>
+  </div>
+
+  <div class="row">
+    <label>Отступ X, мм:
+      <input id="offsetX" type="number" min="0" step="1" value="0">
+    </label>
+
+    <label>Отступ Y, мм:
+      <input id="offsetY" type="number" min="0" step="1" value="0">
+    </label>
+  </div>
+
+  <div id="sizeInfo" class="status">ИТОГОВЫЙ РАЗМЕР: —</div>
+
+  <div class="row">
+    <button class="draw" onclick="drawSvg()">НАРИСОВАТЬ SVG</button>
+    <button class="svgstop" onclick="stopSvg()">STOP SVG</button>
+  </div>
+
+  <div id="svgStatus" class="status">ГОТОВО</div>
+
+  <div class="note">
+    Рисуются только линии и контуры. Поддерживаются line, polyline, polygon, rect, circle, ellipse и path.
+    Заливка, цвет и толщина линии не учитываются.
+  </div>
+</div>
+
+<script>
+let port=null,writer=null,reader=null;
+let svgModel=null,previewUrl=null;
+
+let queue=[];
+let plotActive=false;
+let waitingAck=false;
+let queueTotal=0;
+let queueDone=0;
+
+
+// =====================================================
+// SERIAL
+// =====================================================
+
+async function connectArduino(){
+  if(!("serial" in navigator)){
+    alert("Открой страницу в Chrome или Edge.");
+    return;
+  }
+
+  try{
+    port=await navigator.serial.requestPort();
+    await port.open({baudRate:115200});
+    writer=port.writable.getWriter();
+
+    document.getElementById("status").innerText="ARDUINO ПОДКЛЮЧЕНА";
+
+    await new Promise(r=>setTimeout(r,1200));
+
+    readArduino();
+
+    const speed=document.getElementById("speedSlider").value;
+    await sendCommand("S"+speed+"\n");
+    await sendCommand("P");
+  }catch(e){
+    console.log(e);
+    document.getElementById("status").innerText="ОШИБКА ПОДКЛЮЧЕНИЯ";
+  }
+}
+
+
+async function sendCommand(command){
+  if(!writer)return;
+
+  try{
+    await writer.write(new TextEncoder().encode(command));
+  }catch(e){
+    console.log(e);
+  }
+}
+
+
+// =====================================================
+// РУЧНОЕ УПРАВЛЕНИЕ
+// =====================================================
+
+function bindMove(id,command){
+  const b=document.getElementById(id);
+
+  b.addEventListener("pointerdown",e=>{
+    e.preventDefault();
+    try{b.setPointerCapture(e.pointerId);}catch(_){}
+    sendCommand(command);
+  });
+
+  b.addEventListener("pointerup",()=>sendCommand("0"));
+  b.addEventListener("pointercancel",()=>sendCommand("0"));
+  b.addEventListener("lostpointercapture",()=>sendCommand("0"));
+}
+
+bindMove("xplus","1");
+bindMove("xminus","2");
+bindMove("yplus","3");
+bindMove("yminus","4");
+
+
+async function setZero(){
+  if(!writer){alert("Сначала подключи Arduino.");return;}
+  if(!confirm("Текущая точка станет верхним левым углом X=0, Y=0. Продолжить?"))return;
+
+  document.getElementById("zeroStatus").innerText="СОХРАНЯЮ НОЛЬ...";
+  await sendCommand("Z");
+}
+
+
+async function goZero(){
+  if(!writer){alert("Сначала подключи Arduino.");return;}
+
+  document.getElementById("zeroStatus").innerText="ВОЗВРАЩАЮСЬ В 0,0...";
+  await sendCommand("G");
+}
+
+
+// =====================================================
+// СКОРОСТЬ
+// =====================================================
+
+document.getElementById("speedSlider").addEventListener("input",async e=>{
+  const value=e.target.value;
+  document.getElementById("speedValue").innerText=value;
+
+  if(plotActive){
+    return;
+  }
+
+  await sendCommand("S"+value+"\n");
+});
+
+
+// =====================================================
+// SVG ЗАГРУЗКА
+// =====================================================
+
+document.getElementById("svgFile").addEventListener("change",async e=>{
+  const file=e.target.files[0];
+  if(!file)return;
+
+  try{
+    const text=await file.text();
+
+    svgModel=extractSvgGeometry(text);
+
+    if(previewUrl){
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    previewUrl=URL.createObjectURL(
+      new Blob([text],{type:"image/svg+xml"})
+    );
+
+    const img=document.createElement("img");
+    img.alt="Предпросмотр SVG";
+    img.src=previewUrl;
+
+    const preview=document.getElementById("preview");
+    preview.innerHTML="";
+    preview.appendChild(img);
+
+    document.getElementById("fileInfo").innerText=
+      file.name+" | контуров: "+svgModel.paths.length+" | точек: "+svgModel.pointCount;
+
+    setSuggestedSize();
+    updateSizeInfo();
+
+    document.getElementById("svgStatus").innerText="SVG ЗАГРУЖЕН";
+  }catch(err){
+    console.log(err);
+    svgModel=null;
+    document.getElementById("fileInfo").innerText="ОШИБКА SVG";
+    document.getElementById("svgStatus").innerText="НЕ УДАЛОСЬ ПРОЧИТАТЬ SVG";
+  }
+});
+
+
+function num(value){
+  const n=parseFloat(value);
+  return Number.isFinite(n)?n:0;
+}
+
+
+function sanitizeSvg(svg){
+  svg.querySelectorAll("script,foreignObject,image").forEach(n=>n.remove());
+
+  svg.querySelectorAll("*").forEach(el=>{
+    for(const attr of [...el.attributes]){
+      if(attr.name.toLowerCase().startsWith("on")){
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+}
+
+
+function transformPoint(el,x,y){
+  const m=el.getCTM();
+
+  if(!m){
+    return [x,y];
+  }
+
+  const p=new DOMPoint(x,y).matrixTransform(m);
+  return [p.x,p.y];
+}
+
+
+function parsePointList(text){
+  const values=(text||"")
+    .trim()
+    .replace(/,/g," ")
+    .split(/\s+/)
+    .map(Number)
+    .filter(Number.isFinite);
+
+  const pts=[];
+
+  for(let i=0;i+1<values.length;i+=2){
+    pts.push([values[i],values[i+1]]);
+  }
+
+  return pts;
+}
+
+
+function distance(a,b){
+  return Math.hypot(a[0]-b[0],a[1]-b[1]);
+}
+
+
+function splitLargeJumps(points){
+  if(points.length<3)return [points];
+
+  const ds=[];
+
+  for(let i=1;i<points.length;i++){
+    const d=distance(points[i-1],points[i]);
+    if(d>0)ds.push(d);
+  }
+
+  if(!ds.length)return [points];
+
+  const sorted=[...ds].sort((a,b)=>a-b);
+  const median=sorted[Math.floor(sorted.length/2)];
+  const threshold=Math.max(median*6,0.001);
+
+  const result=[];
+  let current=[points[0]];
+
+  for(let i=1;i<points.length;i++){
+    if(distance(points[i-1],points[i])>threshold){
+      if(current.length>=2)result.push(current);
+      current=[points[i]];
+    }else{
+      current.push(points[i]);
+    }
+  }
+
+  if(current.length>=2)result.push(current);
+
+  return result;
+}
+
+
+function extractSvgGeometry(text){
+  const doc=new DOMParser().parseFromString(text,"image/svg+xml");
+
+  if(doc.querySelector("parsererror")){
+    throw new Error("SVG parse error");
+  }
+
+  const source=doc.documentElement;
+  sanitizeSvg(source);
+
+  const host=document.createElement("div");
+  host.style.position="absolute";
+  host.style.left="-10000px";
+  host.style.top="-10000px";
+  host.style.visibility="hidden";
+
+  const svg=document.importNode(source,true);
+
+  let vb=svg.getAttribute("viewBox");
+  if(vb){
+    const p=vb.trim().split(/[ ,]+/).map(Number);
+    if(p.length===4 && p.every(Number.isFinite)){
+      svg.setAttribute("width",String(Math.abs(p[2])||100));
+      svg.setAttribute("height",String(Math.abs(p[3])||100));
+    }
+  }else{
+    svg.setAttribute("width",svg.getAttribute("width")||"100");
+    svg.setAttribute("height",svg.getAttribute("height")||"100");
+  }
+
+  host.appendChild(svg);
+  document.body.appendChild(host);
+
+  const paths=[];
+
+  const addPath=pts=>{
+    if(pts && pts.length>=2){
+      paths.push(pts);
+    }
+  };
+
+
+  svg.querySelectorAll("line").forEach(el=>{
+    addPath([
+      transformPoint(el,num(el.getAttribute("x1")),num(el.getAttribute("y1"))),
+      transformPoint(el,num(el.getAttribute("x2")),num(el.getAttribute("y2")))
+    ]);
+  });
+
+
+  svg.querySelectorAll("polyline").forEach(el=>{
+    const pts=parsePointList(el.getAttribute("points"))
+      .map(p=>transformPoint(el,p[0],p[1]));
+
+    addPath(pts);
+  });
+
+
+  svg.querySelectorAll("polygon").forEach(el=>{
+    const pts=parsePointList(el.getAttribute("points"))
+      .map(p=>transformPoint(el,p[0],p[1]));
+
+    if(pts.length>=2){
+      pts.push([pts[0][0],pts[0][1]]);
+    }
+
+    addPath(pts);
+  });
+
+
+  svg.querySelectorAll("rect").forEach(el=>{
+    const x=num(el.getAttribute("x"));
+    const y=num(el.getAttribute("y"));
+    const w=num(el.getAttribute("width"));
+    const h=num(el.getAttribute("height"));
+
+    addPath([
+      transformPoint(el,x,y),
+      transformPoint(el,x+w,y),
+      transformPoint(el,x+w,y+h),
+      transformPoint(el,x,y+h),
+      transformPoint(el,x,y)
+    ]);
+  });
+
+
+  function addEllipse(el,cx,cy,rx,ry){
+    const pts=[];
+    const segments=96;
+
+    for(let i=0;i<=segments;i++){
+      const a=Math.PI*2*i/segments;
+      pts.push(
+        transformPoint(
+          el,
+          cx+Math.cos(a)*rx,
+          cy+Math.sin(a)*ry
+        )
+      );
+    }
+
+    addPath(pts);
+  }
+
+
+  svg.querySelectorAll("circle").forEach(el=>{
+    const cx=num(el.getAttribute("cx"));
+    const cy=num(el.getAttribute("cy"));
+    const r=num(el.getAttribute("r"));
+    addEllipse(el,cx,cy,r,r);
+  });
+
+
+  svg.querySelectorAll("ellipse").forEach(el=>{
+    addEllipse(
+      el,
+      num(el.getAttribute("cx")),
+      num(el.getAttribute("cy")),
+      num(el.getAttribute("rx")),
+      num(el.getAttribute("ry"))
+    );
+  });
+
+
+  svg.querySelectorAll("path").forEach(el=>{
+    try{
+      const length=el.getTotalLength();
+
+      if(!(length>0))return;
+
+      const count=Math.max(12,Math.min(1200,Math.ceil(length)));
+      const pts=[];
+
+      for(let i=0;i<=count;i++){
+        const p=el.getPointAtLength(length*i/count);
+        pts.push(transformPoint(el,p.x,p.y));
+      }
+
+      splitLargeJumps(pts).forEach(addPath);
+    }catch(err){
+      console.log("path skipped",err);
+    }
+  });
+
+
+  host.remove();
+
+  if(!paths.length){
+    throw new Error("No supported geometry");
+  }
+
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  let pointCount=0;
+
+  for(const path of paths){
+    pointCount+=path.length;
+
+    for(const p of path){
+      minX=Math.min(minX,p[0]);
+      minY=Math.min(minY,p[1]);
+      maxX=Math.max(maxX,p[0]);
+      maxY=Math.max(maxY,p[1]);
+    }
+  }
+
+  const width=maxX-minX;
+  const height=maxY-minY;
+
+  if(!(width>0) || !(height>0)){
+    throw new Error("Zero size SVG");
+  }
+
+  return {paths,minX,minY,maxX,maxY,width,height,pointCount};
+}
+
+
+// =====================================================
+// РАЗМЕР
+// =====================================================
+
+function setSuggestedSize(){
+  if(!svgModel)return;
+
+  const w=80;
+  const h=w*svgModel.height/svgModel.width;
+
+  document.getElementById("drawWidth").value=w.toFixed(1);
+  document.getElementById("drawHeight").value=h.toFixed(1);
+}
+
+
+function syncHeight(){
+  if(!svgModel || !document.getElementById("keepRatio").checked)return;
+
+  const w=Number(document.getElementById("drawWidth").value);
+  if(!(w>0))return;
+
+  document.getElementById("drawHeight").value=
+    (w*svgModel.height/svgModel.width).toFixed(1);
+}
+
+
+function syncWidth(){
+  if(!svgModel || !document.getElementById("keepRatio").checked)return;
+
+  const h=Number(document.getElementById("drawHeight").value);
+  if(!(h>0))return;
+
+  document.getElementById("drawWidth").value=
+    (h*svgModel.width/svgModel.height).toFixed(1);
+}
+
+
+function updateSizeInfo(){
+  const w=Number(document.getElementById("drawWidth").value);
+  const h=Number(document.getElementById("drawHeight").value);
+
+  if(!(w>0) || !(h>0)){
+    document.getElementById("sizeInfo").innerText="ИТОГОВЫЙ РАЗМЕР: ОШИБКА";
+    return;
+  }
+
+  document.getElementById("sizeInfo").innerText=
+    "ИТОГОВЫЙ РАЗМЕР: "+w.toFixed(1)+" × "+h.toFixed(1)+" мм";
+}
+
+
+document.getElementById("drawWidth").addEventListener("input",()=>{
+  syncHeight();
+  updateSizeInfo();
+});
+
+document.getElementById("drawHeight").addEventListener("input",()=>{
+  syncWidth();
+  updateSizeInfo();
+});
+
+document.getElementById("keepRatio").addEventListener("change",()=>{
+  syncHeight();
+  updateSizeInfo();
+});
+
+
+// =====================================================
+// ОЧЕРЕДЬ SVG
+// =====================================================
+
+function makePlotQueue(){
+  if(!svgModel)throw new Error("No SVG");
+
+  const widthMm=Number(document.getElementById("drawWidth").value);
+  const heightMm=Number(document.getElementById("drawHeight").value);
+  const offsetX=Number(document.getElementById("offsetX").value);
+  const offsetY=Number(document.getElementById("offsetY").value);
+
+  if(!(widthMm>0) || !(heightMm>0) || !(offsetX>=0) || !(offsetY>=0)){
+    throw new Error("Bad dimensions");
+  }
+
+  let sx=widthMm/svgModel.width;
+  let sy=heightMm/svgModel.height;
+
+  if(document.getElementById("keepRatio").checked){
+    const s=Math.min(sx,sy);
+    sx=s;
+    sy=s;
+  }
+
+  const q=[];
+
+  for(const path of svgModel.paths){
+    if(path.length<2)continue;
+
+    const first=path[0];
+
+    const x0=offsetX+(first[0]-svgModel.minX)*sx;
+    const y0=offsetY+(first[1]-svgModel.minY)*sy;
+
+    q.push("M"+x0.toFixed(3)+","+y0.toFixed(3)+"\n");
+
+    for(let i=1;i<path.length;i++){
+      const p=path[i];
+
+      const x=offsetX+(p[0]-svgModel.minX)*sx;
+      const y=offsetY+(p[1]-svgModel.minY)*sy;
+
+      q.push("L"+x.toFixed(3)+","+y.toFixed(3)+"\n");
+    }
+  }
+
+  return q;
+}
+
+
+async function drawSvg(){
+  if(!writer){
+    alert("Сначала подключи Arduino.");
+    return;
+  }
+
+  if(!svgModel){
+    alert("Сначала выбери SVG.");
+    return;
+  }
+
+  try{
+    queue=makePlotQueue();
+
+    if(!queue.length){
+      alert("В SVG нет линий для рисования.");
+      return;
+    }
+
+    plotActive=true;
+    waitingAck=false;
+    queueTotal=queue.length;
+    queueDone=0;
+
+    document.getElementById("svgStatus").innerText=
+      "НАЧИНАЮ SVG. КОМАНД: "+queueTotal;
+
+    await sendNext();
+  }catch(err){
+    console.log(err);
+    document.getElementById("svgStatus").innerText="ОШИБКА ПОДГОТОВКИ SVG";
+  }
+}
+
+
+async function sendNext(){
+  if(!plotActive || waitingAck)return;
+
+  if(!queue.length){
+    plotActive=false;
+    waitingAck=false;
+
+    document.getElementById("svgStatus").innerText="SVG ГОТОВ";
+    return;
+  }
+
+  const command=queue.shift();
+
+  waitingAck=true;
+
+  await sendCommand(command);
+}
+
+
+function handleAck(line){
+  if(!plotActive)return;
+
+  if(line==="OK:M" || line==="OK:L"){
+    waitingAck=false;
+    queueDone++;
+
+    document.getElementById("svgStatus").innerText=
+      "РИСУЮ SVG: "+queueDone+" / "+queueTotal;
+
+    sendNext();
+    return;
+  }
+
+  if(line.startsWith("ERR:")){
+    plotActive=false;
+    waitingAck=false;
+    queue=[];
+
+    document.getElementById("svgStatus").innerText=
+      "ОШИБКА: "+line.substring(4);
+  }
+}
+
+
+async function stopSvg(){
+  plotActive=false;
+  waitingAck=false;
+  queue=[];
+
+  document.getElementById("svgStatus").innerText="SVG ОСТАНОВЛЕН";
+
+  await sendCommand("0");
+}
+
+
+// =====================================================
+// ЧТЕНИЕ ARDUINO
+// =====================================================
+
+async function readArduino(){
+  const decoder=new TextDecoder();
+  let buffer="";
+
+  while(port && port.readable){
+    reader=port.readable.getReader();
+
+    try{
+      while(true){
+        const {value,done}=await reader.read();
+
+        if(done)break;
+        if(!value)continue;
+
+        buffer+=decoder.decode(value,{stream:true});
+
+        const lines=buffer.split("\n");
+        buffer=lines.pop();
+
+        for(let line of lines){
+          line=line.trim();
+          if(!line)continue;
+
+          handleAck(line);
+
+          if(line.startsWith("ANGLE:")){
+            document.getElementById("angle").innerText=
+              "Угол: "+line.substring(6);
+          }
+
+          else if(line.startsWith("SPEED:")){
+            const s=line.substring(6);
+            document.getElementById("speedSlider").value=s;
+            document.getElementById("speedValue").innerText=s;
+          }
+
+          else if(line==="POS:UNKNOWN"){
+            document.getElementById("posX").innerText="—";
+            document.getElementById("posY").innerText="—";
+          }
+
+          else if(line.startsWith("POS:")){
+            const p=line.substring(4).split(",");
+
+            if(p.length===2){
+              document.getElementById("posX").innerText=Number(p[0]).toFixed(2);
+              document.getElementById("posY").innerText=Number(p[1]).toFixed(2);
+            }
+          }
+
+          else if(line==="ZERO:SAVED"){
+            document.getElementById("zeroStatus").innerText="НОЛЬ СОХРАНЁН";
+          }
+
+          else if(line==="ZERO:LOADED"){
+            document.getElementById("zeroStatus").innerText="НОЛЬ ЗАГРУЖЕН ИЗ EEPROM";
+          }
+
+          else if(line==="ZERO:NOT_SET"){
+            document.getElementById("zeroStatus").innerText="НОЛЬ НЕ ЗАДАН";
+          }
+
+          else if(line==="HOME:START"){
+            document.getElementById("zeroStatus").innerText="ВОЗВРАЩАЮСЬ В 0,0...";
+          }
+
+          else if(line==="HOME:DONE"){
+            document.getElementById("zeroStatus").innerText="КАРЕТКА В НУЛЕ 0,0";
+          }
+
+          else if(line==="HOME:NO_ZERO"){
+            document.getElementById("zeroStatus").innerText="СНАЧАЛА ЗАДАЙ НОЛЬ";
+          }
+
+          else if(line==="HOME:ABORTED"){
+            document.getElementById("zeroStatus").innerText="ВОЗВРАТ ОСТАНОВЛЕН";
+          }
+        }
+      }
+    }catch(err){
+      console.log(err);
+    }finally{
+      reader.releaseLock();
+      reader=null;
+    }
+  }
+}
+</script>
+
+</body>
+</html>
