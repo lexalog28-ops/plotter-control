@@ -1,0 +1,51 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Плоттер • X/Y и серво • v4</title>
+<style>body{font:17px system-ui;background:#101826;color:#e5eef9;max-width:850px;margin:30px auto;padding:16px}section{background:#1c293b;border-radius:16px;padding:22px;margin:18px 0}button,input{font:inherit;padding:12px;border-radius:8px;border:1px solid #678}button{cursor:pointer;background:#dceafa;color:#102037;touch-action:none;user-select:none;margin:6px}button:disabled{opacity:.4}button:active{background:#72dac7}input[type=number]{width:90px}fieldset{border:0;padding:0}label{display:inline-block;margin:8px}#stop{background:#ffb2a6}pre{white-space:pre-wrap;max-height:200px;overflow:auto;font-size:13px}.hint{color:#adc0d8;font-size:14px}</style>
+<h1>Плоттер: X/Y и серво</h1><p id="status" role="status">Не подключено · версия 4</p>
+<button id="connect">Подключить Arduino</button><button id="disconnect" disabled>Отключить</button>
+<fieldset id="controls" disabled><section><h2>Движение кареток</h2><p>Удерживайте кнопку для движения. Отпустите для остановки.</p>
+<div><label>X, об/мин <input id="sx" type="number" min="1" max="120" value="30"></label><button id="xm">X −</button><button id="xp">X +</button></div>
+<div><label>Y, об/мин <input id="sy" type="number" min="1" max="120" value="30"></label><button id="ym">Y −</button><button id="yp">Y +</button></div><button id="stop">СТОП X/Y</button><p class="hint">Расчёт для 200 шагов/оборот без перемычек микрошагов. Начните с 30 об/мин. Ограничители хода не подключены.</p></section>
+<section><h2>Сервопривод</h2><label>Угол, ° <input id="angle" type="number" min="0" max="180" value="90"></label><button id="apply">Установить</button><button id="minus">−1°</button><button id="plus">+1°</button><br>
+<label>Вверх, ° <input id="upAngle" type="number" min="0" max="180" value="90"></label><button id="up">Поднять</button><label>Вниз, ° <input id="downAngle" type="number" min="0" max="180" value="100"></label><button id="down">Опустить</button><button id="detach">Отключить импульсы серво</button><p class="hint">D12 / SpnEn. Углы нужно откалибровать под механизм. При подключении серво не двигается автоматически. Питание — отдельные 5 В, общая GND.</p></section></fieldset>
+<details><summary>Журнал соединения</summary><pre id="log"></pre></details><p class="hint">Откройте в Chrome или Edge на компьютере. Закройте монитор порта Arduino IDE. Нужна прошивка PLOTTER 4.</p>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+let port=null, reader=null, writer=null, readTask=null, ready=false, connecting=false, closing=false;
+let pending=new Map(), writing=false, session=0, handshake=null, handshakeTimer=null;
+let held={x:0,y:0}, owners={x:null,y:null}, lastServo=0;
+const enc=new TextEncoder();
+function log(s){const el=$('log');el.textContent=(el.textContent+new Date().toISOString()+' '+s+'\n').split('\n').slice(-150).join('\n');el.scrollTop=el.scrollHeight;}
+function status(s){$('status').textContent=s;}
+function resetHeld(){held={x:0,y:0};owners={x:null,y:null};}
+function fault(message){ready=false;resetHeld();pending.clear();$('controls').disabled=true;status(message);log(message);}
+function enqueue(kind,line){if(!writer)return;if(kind==='stop'){pending.delete('motion');pending.delete('servo');}pending.set(kind,line);void drain();}
+async function drain(){if(writing)return;writing=true;const epoch=session;try{while(writer&&pending.size&&epoch===session){const kind=pending.has('stop')?'stop':pending.keys().next().value;const line=pending.get(kind);pending.delete(kind);await writer.write(enc.encode(line+'\n'));}}catch(e){fault('Ошибка записи: '+e.message);}finally{writing=false;}}
+function intValue(id,min,max){const n=Number($(id).value);if(!Number.isInteger(n)||n<min||n>max)throw Error('Допустимое значение: '+min+'…'+max);return n;}
+function motion(){if(!ready)return;try{const x=held.x*intValue('sx',1,120),y=held.y*intValue('sy',1,120);enqueue('motion',`MOVE ${x} ${y}`);}catch(e){stop();status(e.message);}}
+function stop(){resetHeld();if(writer)enqueue('stop','STOP');}
+function servo(id){if(!ready)return;try{const angle=intValue(id,0,180);$('angle').value=angle;enqueue('servo','SERVO '+angle);}catch(e){status(e.message);}}
+function incoming(line){log('RX '+line);if(line==='READY PLOTTER 4'&&handshake){const resolve=handshake;handshake=null;clearTimeout(handshakeTimer);resolve();return;}if(line.includes('BOOT')&&ready){fault('Плата перезапустилась. Отключите и подключите заново.');enqueue('stop','STOP');}if(line.startsWith('FAULT')||line.startsWith('ERR')){fault('Плата остановлена: '+line);enqueue('stop','STOP');}}
+async function readLoop(){const decoder=new TextDecoder();let buffer='';try{while(reader){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});if(buffer.length>4096)throw Error('Слишком длинный ответ');let p;while((p=buffer.indexOf('\n'))>=0){incoming(buffer.slice(0,p).trim());buffer=buffer.slice(p+1);}}if(!closing)fault('Соединение закрыто. Отключите и подключите заново.');}catch(e){if(!closing)fault('Ошибка чтения: '+e.message);}}
+async function disconnect(){if(closing)return;closing=true;ready=false;$('controls').disabled=true;resetHeld();pending.clear();clearTimeout(handshakeTimer);handshake=null;
+// Local USB buffers may stall: firmware's independent 500 ms lease stops motion.
+try{if(reader)await reader.cancel();if(readTask)await readTask;if(reader)reader.releaseLock();}catch(e){log(e.message);}reader=null;readTask=null;
+try{if(writer){await writer.abort();writer.releaseLock();}}catch(e){log(e.message);}writer=null;session++;pending.clear();
+try{if(port)await port.close();}catch(e){log(e.message);}port=null;closing=false;$('connect').disabled=false;$('disconnect').disabled=true;status('Отключено');}
+async function connect(){if(connecting||port)return;connecting=true;$('connect').disabled=true;try{if(!navigator.serial)throw Error('Web Serial недоступен. Откройте страницу в Chrome/Edge через HTTPS или localhost.');
+// requestPort must be called directly from the click gesture, before any await.
+port=await navigator.serial.requestPort();await port.open({baudRate:115200});writer=port.writable.getWriter();reader=port.readable.getReader();readTask=readLoop();status('Ожидание запуска Arduino…');await new Promise(r=>setTimeout(r,2200));
+await new Promise((resolve,reject)=>{handshake=resolve;handshakeTimer=setTimeout(()=>{handshake=null;reject(Error('Нет ответа PLOTTER 4. Загрузите новую прошивку.'));},2500);enqueue('hello','HELLO');});
+ready=true;resetHeld();$('controls').disabled=false;$('disconnect').disabled=false;status('Подключено • PLOTTER 4');
+}catch(e){const message=e.message;await disconnect();status(message);log(message);}finally{connecting=false;}}
+$('connect').onclick=connect;$('disconnect').onclick=()=>{stop();void disconnect();};$('stop').onclick=stop;
+for(const [id,axis,dir] of [['xm','x',-1],['xp','x',1],['ym','y',-1],['yp','y',1]]){const b=$(id);function start(token){if(!ready)return;owners[axis]=token;held[axis]=dir;motion();}function end(token){if(owners[axis]!==token)return;owners[axis]=null;held[axis]=0;motion();}
+b.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();start(id+':'+e.pointerId);};for(const ev of ['pointerup','pointercancel','pointerleave'])b.addEventListener(ev,e=>end(id+':'+e.pointerId));b.onkeydown=e=>{if([' ','Enter'].includes(e.key)){e.preventDefault();if(!e.repeat)start(id+':key');}};b.onkeyup=e=>{if([' ','Enter'].includes(e.key)){e.preventDefault();end(id+':key');}};b.onblur=()=>{if(held[axis]){owners[axis]=null;held[axis]=0;motion();}};b.oncontextmenu=e=>e.preventDefault();}
+$('sx').onchange=motion;$('sy').onchange=motion;
+$('apply').onclick=()=>servo('angle');$('up').onclick=()=>servo('upAngle');$('down').onclick=()=>servo('downAngle');
+for(const [id,delta] of [['minus',-1],['plus',1]])$(id).onclick=()=>{try{$('angle').value=Math.max(0,Math.min(180,intValue('angle',0,180)+delta));servo('angle');}catch(e){status(e.message);}};
+$('detach').onclick=()=>{if(ready)enqueue('servo','DETACH');};
+window.addEventListener('blur',stop);window.addEventListener('pagehide',stop);document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
+// No traffic at idle; only renew active motion leases, no status polling.
+setInterval(()=>{if(ready&&(held.x||held.y))motion();},100);
+</script></html>
