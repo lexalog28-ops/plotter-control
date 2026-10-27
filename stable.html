@@ -5,8 +5,8 @@
 <fieldset id="controls" disabled><section><h2>Движение кареток</h2><p>Удерживайте кнопку для движения. Отпустите для остановки.</p>
 <div><label>X, об/мин <input id="sx" type="number" min="1" max="120" value="30"></label><button id="xm">X −</button><button id="xp">X +</button></div>
 <div><label>Y, об/мин <input id="sy" type="number" min="1" max="120" value="30"></label><button id="ym">Y −</button><button id="yp">Y +</button></div><button id="stop">СТОП X/Y</button><p class="hint">Расчёт для 200 шагов/оборот без перемычек микрошагов. Начните с 30 об/мин. Ограничители хода не подключены.</p></section>
-<section><h2>Сервопривод</h2><label>Угол, ° <input id="angle" type="number" min="0" max="180" value="90"></label><button id="apply">Установить</button><button id="minus">−1°</button><button id="plus">+1°</button><br>
-<label>Вверх, ° <input id="upAngle" type="number" min="0" max="180" value="90"></label><button id="up">Поднять</button><label>Вниз, ° <input id="downAngle" type="number" min="0" max="180" value="100"></label><button id="down">Опустить</button><button id="detach">Отключить импульсы серво</button><p class="hint">D12 / SpnEn. Углы нужно откалибровать под механизм. При подключении серво не двигается автоматически. Питание — отдельные 5 В, общая GND.</p></section><section><h2>Нарисовать круг</h2>
+<section><h2>Сервопривод</h2><label>Угол, ° <input id="angle" type="number" min="0" max="180" value="110"></label><button id="apply">Установить</button><button id="minus">−1°</button><button id="plus">+1°</button><br>
+<label>Вверх, ° <input id="upAngle" type="number" min="0" max="180" value="110"></label><button id="up">Поднять</button><label>Вниз, ° <input id="downAngle" type="number" min="0" max="180" value="155"></label><button id="down">Опустить</button><button id="detach">Отключить импульсы серво</button><p class="hint">D12 / SpnEn. Углы нужно откалибровать под механизм. При подключении серво не двигается автоматически. Питание — отдельные 5 В, общая GND.</p></section><section><h2>Нарисовать круг</h2>
 <label>Диаметр, мм <input id="diameter" type="number" min="1" max="300" step="0.1" value="20"></label>
 <label>Скорость, мм/с <input id="feed" type="number" min="0.1" max="20" step="0.1" value="5"></label><br>
 <label>X, шагов/мм <input id="calX" type="number" min="0.1" max="2000" step="any" placeholder="введите"></label>
@@ -65,7 +65,7 @@ async function drawCircle(){if(!ready||drawing)return;let token;
 try{const d=decimal('diameter',1,300),sx=decimal('calX',0.1,2000),sy=decimal('calY',0.1,2000),feed=decimal('feed',0.1,20),up=intValue('upAngle',0,180),down=intValue('downAngle',0,180);
 if(up===down)throw Error('Углы вверх и вниз должны отличаться');
 const points=circlePoints(d,sx,sy);if(Math.round(d*sx)<4||Math.round(d*sy)<4)throw Error('Слишком мало шагов для такого диаметра');
-try{localStorage.setItem('plotterCircle',JSON.stringify({sx,sy,up,down}));}catch(e){}
+try{localStorage.setItem('plotterCircle',JSON.stringify({sx,sy,up,down,penPreset:'110-155'}));}catch(e){}
 stop();token=++jobId;drawing=true;lockDrawing(true);let current=[0,0];
 async function segment(goal){const dx=goal[0]-current[0],dy=goal[1]-current[1];if(!dx&&!dy)return;const distance=Math.hypot(dx/sx,dy/sy);const ms=Math.max(1,Math.ceil(distance/feed*1000),Math.ceil(Math.max(Math.abs(dx),Math.abs(dy))*2.5));await pathCommand(`LINE ${dx} ${dy} ${ms}`,'DONE',token,ms+4000);current=goal;}
 async function travel(goal){const start=current.slice(),n=Math.max(1,Math.ceil(Math.hypot((goal[0]-start[0])/sx,(goal[1]-start[1])/sy)/0.5));for(let i=1;i<=n;i++)await segment([Math.round(start[0]+(goal[0]-start[0])*i/n),Math.round(start[1]+(goal[1]-start[1])*i/n)]);}
@@ -76,5 +76,5 @@ await pathCommand('SERVO '+up,'OK SERVO',token);await new Promise(r=>setTimeout(
 $('progress').textContent='Готово. Ручка поднята, возврат в центр.';
 }catch(e){$('progress').textContent=e.message;if(token!==undefined&&token===jobId){pending.clear();enqueue('stop','STOP');}}finally{if(token===jobId){drawing=false;pending.delete('ping');lockDrawing(false);}}}
 $('circle').onclick=drawCircle;
-try{const c=JSON.parse(localStorage.getItem('plotterCircle'));if(c){$('calX').value=c.sx;$('calY').value=c.sy;$('upAngle').value=c.up;$('downAngle').value=c.down;}}catch(e){}
+try{const c=JSON.parse(localStorage.getItem('plotterCircle'));if(c){$('calX').value=c.sx;$('calY').value=c.sy;if(c.penPreset==='110-155'){$('upAngle').value=c.up;$('downAngle').value=c.down;}}}catch(e){}
 </script></html>
